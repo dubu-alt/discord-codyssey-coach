@@ -1,0 +1,2 @@
+"""Codyssey Discord coach bot."""
+
