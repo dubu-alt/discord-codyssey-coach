@@ -4,11 +4,12 @@ import os
 from datetime import date
 from pathlib import Path
 
+import certifi
 import discord
 from discord import app_commands
 
 from .messages import evaluation_message, status_message, weekly_plan_message
-from .missions import get_mission
+from .missions import MISSIONS, get_mission
 from .planner import build_status
 from .storage import CoachStore
 
@@ -63,21 +64,36 @@ def create_bot() -> discord.Client:
         await interaction.response.send_message(f"현재 레벨을 {level}로 기록했어요.")
 
     @tree.command(name="평가결과", description="미션 평가 결과를 기록합니다. Pass 3회면 완료, Fail이면 초기화됩니다.")
-    @app_commands.describe(mission_id="예: B2-1", result="pass 또는 fail")
+    @app_commands.describe(mission_id="미션 선택", result="평가 결과", pass_count="한 번에 기록할 Pass 횟수")
     @app_commands.choices(
+        mission_id=[
+            app_commands.Choice(name=f"{mission.mission_id} - {mission.name}", value=mission.mission_id)
+            for mission in MISSIONS
+        ],
         result=[
             app_commands.Choice(name="pass", value="pass"),
             app_commands.Choice(name="fail", value="fail"),
-        ]
+        ],
+        pass_count=[
+            app_commands.Choice(name="1회", value=1),
+            app_commands.Choice(name="2회", value=2),
+            app_commands.Choice(name="3회", value=3),
+        ],
     )
-    async def evaluation(interaction: discord.Interaction, mission_id: str, result: app_commands.Choice[str]) -> None:
+    async def evaluation(
+        interaction: discord.Interaction,
+        mission_id: app_commands.Choice[str],
+        result: app_commands.Choice[str],
+        pass_count: app_commands.Choice[int] | None = None,
+    ) -> None:
         user_id = await ensure(interaction)
-        mission = get_mission(mission_id)
+        mission = get_mission(mission_id.value)
         if mission is None:
-            await interaction.response.send_message(f"'{mission_id}' 미션을 찾지 못했어요. 예: B2-1", ephemeral=True)
+            await interaction.response.send_message(f"'{mission_id.value}' 미션을 찾지 못했어요.", ephemeral=True)
             return
-        progress = store.record_evaluation(user_id, mission.mission_id, result.value)
-        await interaction.response.send_message(evaluation_message(mission.mission_id, result.value, progress))
+        count = pass_count.value if pass_count else 1
+        progress = store.record_evaluation(user_id, mission.mission_id, result.value, count)
+        await interaction.response.send_message(evaluation_message(mission.mission_id, result.value, progress, count))
 
     @tree.command(name="주간보고", description="이번 주 완료 내용, 학습 시간, 막힌 점을 기록합니다.")
     @app_commands.describe(completed="이번 주 완료한 내용", study_hours="이번 주 학습 시간", blockers="막힌 점")
@@ -113,6 +129,7 @@ def create_bot() -> discord.Client:
 
 def main() -> None:
     load_dotenv()
+    os.environ.setdefault("SSL_CERT_FILE", certifi.where())
     token = os.getenv("DISCORD_TOKEN")
     if not token:
         raise RuntimeError("DISCORD_TOKEN environment variable is required.")
