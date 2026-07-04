@@ -1,4 +1,4 @@
-# Codyssey Discord Coach Bot
+# discord-codyssey-coach
 
 디스코드 채널 안에서 Codyssey `AI/SW 기초` 과정을 관리하는 MVP 봇입니다.
 
