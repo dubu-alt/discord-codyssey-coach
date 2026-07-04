@@ -48,11 +48,11 @@ def remaining_weeks(today: date | None = None) -> int:
     return max(0, ceil((end - today).days / 7))
 
 
-def apply_evaluation(progress: MissionProgress | None, result: str) -> MissionProgress:
+def apply_evaluation(progress: MissionProgress | None, result: str, pass_count: int = 1) -> MissionProgress:
     current = progress or MissionProgress(mission_id="")
     normalized = result.strip().lower()
     if normalized == "pass":
-        pass_count = min(PASS_REQUIRED, current.pass_count + 1)
+        pass_count = min(PASS_REQUIRED, current.pass_count + pass_count)
         return MissionProgress(
             mission_id=current.mission_id,
             pass_count=pass_count,

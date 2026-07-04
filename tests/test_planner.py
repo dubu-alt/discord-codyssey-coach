@@ -13,6 +13,13 @@ def test_pass_three_times_completes_mission() -> None:
     assert progress.completed is True
 
 
+def test_multiple_passes_can_be_recorded_at_once() -> None:
+    progress = apply_evaluation(MissionProgress("B2-1", pass_count=1), "pass", 2)
+
+    assert progress.pass_count == 3
+    assert progress.completed is True
+
+
 def test_fail_resets_pass_count() -> None:
     progress = MissionProgress("B2-1", pass_count=2)
     progress = apply_evaluation(progress, "fail")

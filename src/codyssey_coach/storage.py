@@ -98,13 +98,13 @@ class CoachStore:
             for row in rows
         }
 
-    def record_evaluation(self, discord_user_id: str, mission_id: str, result: str) -> MissionProgress:
+    def record_evaluation(self, discord_user_id: str, mission_id: str, result: str, pass_count: int = 1) -> MissionProgress:
         mission = get_mission(mission_id)
         if mission is None:
             raise ValueError(f"unknown mission: {mission_id}")
 
         progress = self.get_progress(discord_user_id).get(mission.mission_id, MissionProgress(mission.mission_id))
-        updated = apply_evaluation(progress, result)
+        updated = apply_evaluation(progress, result, pass_count)
         updated = MissionProgress(mission.mission_id, updated.pass_count, updated.fail_count, updated.completed)
 
         with self.connect() as db:
