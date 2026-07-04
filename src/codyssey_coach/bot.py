@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from datetime import date
+from pathlib import Path
 
 import discord
 from discord import app_commands
@@ -10,6 +11,19 @@ from .messages import evaluation_message, status_message, weekly_plan_message
 from .missions import get_mission
 from .planner import build_status
 from .storage import CoachStore
+
+
+def load_dotenv(path: str = ".env") -> None:
+    env_path = Path(path)
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
 def create_bot() -> discord.Client:
@@ -98,6 +112,7 @@ def create_bot() -> discord.Client:
 
 
 def main() -> None:
+    load_dotenv()
     token = os.getenv("DISCORD_TOKEN")
     if not token:
         raise RuntimeError("DISCORD_TOKEN environment variable is required.")

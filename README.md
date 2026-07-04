@@ -17,7 +17,7 @@
 ## 실행 준비
 
 ```bash
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
@@ -27,17 +27,27 @@ cp .env.example .env
 
 빠른 명령어 등록을 원하면 `DISCORD_GUILD_ID`에 서버 ID를 넣으면 됩니다.
 
+## 디스코드 채널에 추가
+
+1. Discord Developer Portal에서 새 Application을 만듭니다.
+2. Bot 메뉴에서 Bot을 만들고 Token을 복사합니다.
+3. `.env` 파일의 `DISCORD_TOKEN`에 복사한 토큰을 넣습니다.
+4. OAuth2 URL Generator에서 `bot`, `applications.commands` scope를 선택합니다.
+5. Bot Permissions에서 `Send Messages`, `Use Slash Commands`, `Read Message History`를 선택합니다.
+6. 생성된 URL로 접속해서 원하는 서버에 봇을 초대합니다.
+7. 빠른 슬래시 명령어 등록을 위해 서버 ID를 `.env`의 `DISCORD_GUILD_ID`에 넣습니다.
+
 ## 실행
 
 ```bash
-export DISCORD_TOKEN="your-token"
-python -m codyssey_coach.bot
+export PYTHONPATH=src
+python3 -m codyssey_coach.bot
 ```
 
 ## 테스트
 
 ```bash
-PYTHONPATH=src python -m pytest
+PYTHONPATH=src python3 -m pytest
 ```
 
 ## 기준 규칙
