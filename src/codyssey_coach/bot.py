@@ -121,16 +121,19 @@ def create_bot() -> discord.Client:
         print(f"Codyssey coach bot is ready as {client.user}")
 
     @tree.command(name="내상태", description="현재 Codyssey 진행 상태와 일정 위험도를 확인합니다.")
-    async def my_status(interaction: discord.Interaction) -> None:
-        await interaction.response.defer()
+    @app_commands.rename(public="공개")
+    @app_commands.describe(public="채널에 공개할지 (기본: 나에게만 보임)")
+    async def my_status(interaction: discord.Interaction, public: bool = False) -> None:
+        await interaction.response.defer(ephemeral=not public)
         user_id = await ensure(interaction)
         level, status = await load_status(user_id)
         await interaction.followup.send(status_message(interaction.user.display_name, level, status))
 
     @tree.command(name="레벨설정", description="현재 Codyssey 레벨을 기록합니다.")
-    @app_commands.describe(level="현재 레벨")
-    async def set_level(interaction: discord.Interaction, level: app_commands.Range[int, 1, 10]) -> None:
-        await interaction.response.defer()
+    @app_commands.rename(public="공개")
+    @app_commands.describe(level="현재 레벨", public="채널에 공개할지 (기본: 나에게만 보임)")
+    async def set_level(interaction: discord.Interaction, level: app_commands.Range[int, 1, 10], public: bool = False) -> None:
+        await interaction.response.defer(ephemeral=not public)
         user_id = await ensure(interaction)
         await run_db(store.set_level, user_id, int(level))
         await interaction.followup.send(f"현재 레벨을 {level}로 기록했어요.")
@@ -173,14 +176,17 @@ def create_bot() -> discord.Client:
         return choices[:25]
 
     @tree.command(name="미션현황", description="전체 미션의 완료/진행 상태를 한눈에 확인합니다.")
-    async def mission_board(interaction: discord.Interaction) -> None:
-        await interaction.response.defer()
+    @app_commands.rename(public="공개")
+    @app_commands.describe(public="채널에 공개할지 (기본: 나에게만 보임)")
+    async def mission_board(interaction: discord.Interaction, public: bool = False) -> None:
+        await interaction.response.defer(ephemeral=not public)
         user_id = await ensure(interaction)
         progress_by_id = await run_db(store.get_progress, user_id)
         await interaction.followup.send(mission_board_message(progress_by_id))
 
     @tree.command(name="평가결과", description="미션 평가 결과를 기록합니다. Pass 3회면 완료, Fail이면 초기화됩니다.")
-    @app_commands.describe(mission_id="미션 선택 (미완료 미션만 표시)", result="평가 결과", pass_count="한 번에 기록할 Pass 횟수")
+    @app_commands.rename(public="공개")
+    @app_commands.describe(mission_id="미션 선택 (미완료 미션만 표시)", result="평가 결과", pass_count="한 번에 기록할 Pass 횟수", public="채널에 공개할지 (기본: 나에게만 보임)")
     @app_commands.autocomplete(mission_id=incomplete_missions_autocomplete)
     @app_commands.choices(
         result=[
@@ -198,8 +204,9 @@ def create_bot() -> discord.Client:
         mission_id: str,
         result: app_commands.Choice[str],
         pass_count: app_commands.Choice[int] | None = None,
+        public: bool = False,
     ) -> None:
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=not public)
         user_id = await ensure(interaction)
         mission = get_mission(mission_id)
         if mission is None:
@@ -212,14 +219,16 @@ def create_bot() -> discord.Client:
         await interaction.followup.send(evaluation_message(mission.mission_id, result.value, progress, count) + summary)
 
     @tree.command(name="기록수정", description="잘못 기록한 미션의 Pass 카운트를 직접 수정합니다.")
-    @app_commands.describe(mission_id="수정할 미션", pass_count="설정할 Pass 횟수 (3이면 완료 처리, 0이면 초기화)")
+    @app_commands.rename(public="공개")
+    @app_commands.describe(mission_id="수정할 미션", pass_count="설정할 Pass 횟수 (3이면 완료 처리, 0이면 초기화)", public="채널에 공개할지 (기본: 나에게만 보임)")
     @app_commands.autocomplete(mission_id=all_missions_autocomplete)
     async def fix_record(
         interaction: discord.Interaction,
         mission_id: str,
         pass_count: app_commands.Range[int, 0, 3],
+        public: bool = False,
     ) -> None:
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=not public)
         user_id = await ensure(interaction)
         mission = get_mission(mission_id)
         if mission is None:
@@ -230,17 +239,20 @@ def create_bot() -> discord.Client:
         await interaction.followup.send(f"{mission.mission_id} {mission.name} 기록을 수정했어요. 현재 {state}")
 
     @tree.command(name="주간보고", description="이번 주 완료 내용, 학습 시간, 막힌 점을 기록합니다.")
-    @app_commands.describe(completed="이번 주 완료한 내용", study_hours="이번 주 학습 시간", blockers="막힌 점")
-    async def weekly_report(interaction: discord.Interaction, completed: str, study_hours: app_commands.Range[int, 0, 168], blockers: str = "없음") -> None:
-        await interaction.response.defer()
+    @app_commands.rename(public="공개")
+    @app_commands.describe(completed="이번 주 완료한 내용", study_hours="이번 주 학습 시간", blockers="막힌 점", public="채널에 공개할지 (기본: 나에게만 보임)")
+    async def weekly_report(interaction: discord.Interaction, completed: str, study_hours: app_commands.Range[int, 0, 168], blockers: str = "없음", public: bool = False) -> None:
+        await interaction.response.defer(ephemeral=not public)
         user_id = await ensure(interaction)
         await run_db(store.save_weekly_report, user_id, completed, int(study_hours), blockers)
         _, status = await load_status(user_id)
         await interaction.followup.send("이번 주 보고를 저장했어요.\n\n" + weekly_plan_message(status))
 
     @tree.command(name="다음주계획", description="남은 기간과 필수 미션 기준으로 다음 주 우선순위를 추천합니다.")
-    async def next_week(interaction: discord.Interaction) -> None:
-        await interaction.response.defer()
+    @app_commands.rename(public="공개")
+    @app_commands.describe(public="채널에 공개할지 (기본: 나에게만 보임)")
+    async def next_week(interaction: discord.Interaction, public: bool = False) -> None:
+        await interaction.response.defer(ephemeral=not public)
         user_id = await ensure(interaction)
         _, status = await load_status(user_id)
         await interaction.followup.send(weekly_plan_message(status))
@@ -279,8 +291,10 @@ def create_bot() -> discord.Client:
         await interaction.followup.send(f"봇 메시지 {len(deleted)}개를 삭제했어요.{note}")
 
     @tree.command(name="위험도", description="기초 단계 종료일까지의 일정 위험도를 확인합니다.")
-    async def risk(interaction: discord.Interaction) -> None:
-        await interaction.response.defer()
+    @app_commands.rename(public="공개")
+    @app_commands.describe(public="채널에 공개할지 (기본: 나에게만 보임)")
+    async def risk(interaction: discord.Interaction, public: bool = False) -> None:
+        await interaction.response.defer(ephemeral=not public)
         user_id = await ensure(interaction)
         _, status = await load_status(user_id)
         await interaction.followup.send(
