@@ -114,11 +114,19 @@ def create_bot() -> discord.Client:
         raw = os.getenv("DISCORD_GUILD_ID", "")
         guild_ids = [part.strip() for part in raw.split(",") if part.strip()]
         if guild_ids:
+            synced = 0
             for guild_id in guild_ids:
                 guild = discord.Object(id=int(guild_id))
                 tree.copy_global_to(guild=guild)
-                await tree.sync(guild=guild)
-            print(f"Slash commands synced to {len(guild_ids)} guild(s)")
+                try:
+                    await tree.sync(guild=guild)
+                    synced += 1
+                except discord.Forbidden:
+                    print(
+                        f"[sync] 서버 {guild_id} 명령어 등록 실패 (Missing Access): "
+                        "봇이 그 서버에 없거나 applications.commands scope 없이 초대되었습니다."
+                    )
+            print(f"Slash commands synced to {synced}/{len(guild_ids)} guild(s)")
         else:
             await tree.sync()
             print("Slash commands synced globally")
