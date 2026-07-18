@@ -111,6 +111,9 @@ def create_bot() -> discord.Client:
 
     @client.event
     async def on_ready() -> None:
+        print("현재 봇이 들어가 있는 서버 목록:")
+        for joined_guild in client.guilds:
+            print(f"  - {joined_guild.name} (ID: {joined_guild.id})")
         raw = os.getenv("DISCORD_GUILD_ID", "")
         guild_ids = [part.strip() for part in raw.split(",") if part.strip()]
         if guild_ids:
