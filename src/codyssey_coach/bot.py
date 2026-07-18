@@ -111,13 +111,17 @@ def create_bot() -> discord.Client:
 
     @client.event
     async def on_ready() -> None:
-        guild_id = os.getenv("DISCORD_GUILD_ID")
-        if guild_id:
-            guild = discord.Object(id=int(guild_id))
-            tree.copy_global_to(guild=guild)
-            await tree.sync(guild=guild)
+        raw = os.getenv("DISCORD_GUILD_ID", "")
+        guild_ids = [part.strip() for part in raw.split(",") if part.strip()]
+        if guild_ids:
+            for guild_id in guild_ids:
+                guild = discord.Object(id=int(guild_id))
+                tree.copy_global_to(guild=guild)
+                await tree.sync(guild=guild)
+            print(f"Slash commands synced to {len(guild_ids)} guild(s)")
         else:
             await tree.sync()
+            print("Slash commands synced globally")
         print(f"Codyssey coach bot is ready as {client.user}")
 
     @tree.command(name="내상태", description="현재 Codyssey 진행 상태와 일정 위험도를 확인합니다.")

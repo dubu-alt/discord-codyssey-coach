@@ -42,6 +42,8 @@ cp .env.example .env
 5. Bot Permissions에서 `Send Messages`, `Use Slash Commands`, `Read Message History`, `Manage Messages`(/청소 기능용)를 선택합니다.
 6. 생성된 URL로 접속해서 원하는 서버에 봇을 초대합니다.
 7. 빠른 슬래시 명령어 등록을 위해 서버 ID를 `.env`의 `DISCORD_GUILD_ID`에 넣습니다.
+   - 여러 서버에서 쓰려면 쉼표로 구분해 넣으세요 (예: `DISCORD_GUILD_ID=123,456`)
+   - 비워두면 전역 등록되어 모든 서버에서 쓸 수 있지만, 처음 반영에 최대 1시간 걸립니다.
 
 ## 실행
 
