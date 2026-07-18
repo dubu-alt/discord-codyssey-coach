@@ -11,9 +11,9 @@ import discord
 from aiohttp import web
 from discord import app_commands
 
-from .messages import evaluation_message, status_message, weekly_plan_message
-from .missions import MISSIONS, get_mission
-from .planner import CourseStatus, build_status
+from .messages import evaluation_message, mission_board_message, status_message, weekly_plan_message
+from .missions import MISSIONS, PASS_REQUIRED, get_mission
+from .planner import CourseStatus, MissionProgress, build_status
 from .storage import CoachStore
 
 
@@ -135,13 +135,54 @@ def create_bot() -> discord.Client:
         await run_db(store.set_level, user_id, int(level))
         await interaction.followup.send(f"현재 레벨을 {level}로 기록했어요.")
 
-    @tree.command(name="평가결과", description="미션 평가 결과를 기록합니다. Pass 3회면 완료, Fail이면 초기화됩니다.")
-    @app_commands.describe(mission_id="미션 선택", result="평가 결과", pass_count="한 번에 기록할 Pass 횟수")
-    @app_commands.choices(
-        mission_id=[
-            app_commands.Choice(name=f"{mission.mission_id} - {mission.name}", value=mission.mission_id)
+    def _mission_choice(mission, progress_by_id) -> app_commands.Choice[str]:
+        progress = progress_by_id.get(mission.mission_id, MissionProgress(mission.mission_id))
+        if progress.completed:
+            note = "완료"
+        elif progress.pass_count > 0:
+            note = f"{progress.pass_count}/{PASS_REQUIRED} Pass"
+        else:
+            note = "미시작"
+        name = f"{mission.mission_id} {mission.name} ({note})"
+        return app_commands.Choice(name=name[:100], value=mission.mission_id)
+
+    async def incomplete_missions_autocomplete(
+        interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        """평가결과용: 아직 완료하지 않은 미션만 현재 Pass 횟수와 함께 표시."""
+        progress_by_id = await run_db(store.get_progress, str(interaction.user.id))
+        keyword = current.strip().lower()
+        choices = [
+            _mission_choice(mission, progress_by_id)
             for mission in MISSIONS
-        ],
+            if not progress_by_id.get(mission.mission_id, MissionProgress(mission.mission_id)).completed
+        ]
+        if keyword:
+            choices = [choice for choice in choices if keyword in choice.name.lower()]
+        return choices[:25]
+
+    async def all_missions_autocomplete(
+        interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        """기록수정용: 완료 포함 전체 미션을 현재 상태와 함께 표시."""
+        progress_by_id = await run_db(store.get_progress, str(interaction.user.id))
+        keyword = current.strip().lower()
+        choices = [_mission_choice(mission, progress_by_id) for mission in MISSIONS]
+        if keyword:
+            choices = [choice for choice in choices if keyword in choice.name.lower()]
+        return choices[:25]
+
+    @tree.command(name="미션현황", description="전체 미션의 완료/진행 상태를 한눈에 확인합니다.")
+    async def mission_board(interaction: discord.Interaction) -> None:
+        await interaction.response.defer()
+        user_id = await ensure(interaction)
+        progress_by_id = await run_db(store.get_progress, user_id)
+        await interaction.followup.send(mission_board_message(progress_by_id))
+
+    @tree.command(name="평가결과", description="미션 평가 결과를 기록합니다. Pass 3회면 완료, Fail이면 초기화됩니다.")
+    @app_commands.describe(mission_id="미션 선택 (미완료 미션만 표시)", result="평가 결과", pass_count="한 번에 기록할 Pass 횟수")
+    @app_commands.autocomplete(mission_id=incomplete_missions_autocomplete)
+    @app_commands.choices(
         result=[
             app_commands.Choice(name="pass", value="pass"),
             app_commands.Choice(name="fail", value="fail"),
@@ -154,19 +195,39 @@ def create_bot() -> discord.Client:
     )
     async def evaluation(
         interaction: discord.Interaction,
-        mission_id: app_commands.Choice[str],
+        mission_id: str,
         result: app_commands.Choice[str],
         pass_count: app_commands.Choice[int] | None = None,
     ) -> None:
         await interaction.response.defer()
         user_id = await ensure(interaction)
-        mission = get_mission(mission_id.value)
+        mission = get_mission(mission_id)
         if mission is None:
-            await interaction.followup.send(f"'{mission_id.value}' 미션을 찾지 못했어요.")
+            await interaction.followup.send(f"'{mission_id}' 미션을 찾지 못했어요. 목록에서 선택해주세요.")
             return
         count = pass_count.value if pass_count else 1
         progress = await run_db(store.record_evaluation, user_id, mission.mission_id, result.value, count)
-        await interaction.followup.send(evaluation_message(mission.mission_id, result.value, progress, count))
+        _, status = await load_status(user_id)
+        summary = f"\n\n전체 진행: 필수 미션 {status.completed_required}/{status.total_required} 완료 ({status.progress_percent}%)"
+        await interaction.followup.send(evaluation_message(mission.mission_id, result.value, progress, count) + summary)
+
+    @tree.command(name="기록수정", description="잘못 기록한 미션의 Pass 카운트를 직접 수정합니다.")
+    @app_commands.describe(mission_id="수정할 미션", pass_count="설정할 Pass 횟수 (3이면 완료 처리, 0이면 초기화)")
+    @app_commands.autocomplete(mission_id=all_missions_autocomplete)
+    async def fix_record(
+        interaction: discord.Interaction,
+        mission_id: str,
+        pass_count: app_commands.Range[int, 0, 3],
+    ) -> None:
+        await interaction.response.defer()
+        user_id = await ensure(interaction)
+        mission = get_mission(mission_id)
+        if mission is None:
+            await interaction.followup.send(f"'{mission_id}' 미션을 찾지 못했어요. 목록에서 선택해주세요.")
+            return
+        progress = await run_db(store.set_mission_progress, user_id, mission.mission_id, int(pass_count))
+        state = "완료 처리되었습니다." if progress.completed else f"{progress.pass_count}/{PASS_REQUIRED} Pass 상태입니다."
+        await interaction.followup.send(f"{mission.mission_id} {mission.name} 기록을 수정했어요. 현재 {state}")
 
     @tree.command(name="주간보고", description="이번 주 완료 내용, 학습 시간, 막힌 점을 기록합니다.")
     @app_commands.describe(completed="이번 주 완료한 내용", study_hours="이번 주 학습 시간", blockers="막힌 점")

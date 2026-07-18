@@ -5,7 +5,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from .missions import COURSE_END, COURSE_START, MISSIONS, get_mission
+from .missions import COURSE_END, COURSE_START, MISSIONS, PASS_REQUIRED, get_mission
 from .planner import MissionProgress, apply_evaluation
 
 SCHEMA_STATEMENTS: tuple[str, ...] = (
@@ -155,6 +155,29 @@ class CoachStore:
         )
         self._commit()
         return updated
+
+    def set_mission_progress(self, discord_user_id: str, mission_id: str, pass_count: int) -> MissionProgress:
+        """기록 수정용: Pass 카운트를 지정한 값으로 직접 설정합니다."""
+        mission = get_mission(mission_id)
+        if mission is None:
+            raise ValueError(f"unknown mission: {mission_id}")
+
+        pass_count = max(0, min(PASS_REQUIRED, pass_count))
+        completed = pass_count >= PASS_REQUIRED
+        self._db.execute(
+            """
+            INSERT INTO mission_progress (discord_user_id, mission_id, pass_count, completed, updated_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(discord_user_id, mission_id)
+            DO UPDATE SET
+                pass_count = excluded.pass_count,
+                completed = excluded.completed,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (discord_user_id, mission.mission_id, pass_count, int(completed)),
+        )
+        self._commit()
+        return MissionProgress(mission.mission_id, pass_count, 0, completed)
 
     def save_weekly_report(self, discord_user_id: str, completed: str, study_hours: int, blockers: str) -> None:
         self._db.execute(

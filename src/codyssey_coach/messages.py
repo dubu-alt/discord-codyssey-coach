@@ -1,7 +1,36 @@
 from __future__ import annotations
 
-from .missions import PASS_REQUIRED, get_mission
+from .missions import MISSIONS, PASS_REQUIRED, get_mission
 from .planner import CourseStatus, MissionProgress
+
+
+def mission_board_message(progress_by_id: dict[str, MissionProgress]) -> str:
+    """전체 미션 현황을 한눈에 보여주는 메시지."""
+
+    def line(mission) -> str:
+        progress = progress_by_id.get(mission.mission_id, MissionProgress(mission.mission_id))
+        if progress.completed:
+            symbol, note = "✅", "완료"
+        elif progress.pass_count > 0:
+            symbol, note = "🔶", f"{progress.pass_count}/{PASS_REQUIRED} Pass"
+        else:
+            symbol, note = "⬜", "미시작"
+        return f"{symbol} {mission.mission_id} {mission.name} — {note}"
+
+    required = [mission for mission in MISSIONS if mission.required]
+    optional = [mission for mission in MISSIONS if not mission.required]
+    done_required = sum(
+        1 for mission in required
+        if progress_by_id.get(mission.mission_id, MissionProgress(mission.mission_id)).completed
+    )
+    required_lines = "\n".join(line(mission) for mission in required)
+    optional_lines = "\n".join(line(mission) for mission in optional)
+    percent = round(done_required / len(required) * 100)
+    return (
+        f"미션 현황 (필수 {done_required}/{len(required)} 완료, 진행률 {percent}%)\n\n"
+        f"[필수 미션]\n{required_lines}\n\n"
+        f"[선택 미션]\n{optional_lines}"
+    )
 
 
 def mission_label(mission_id: str) -> str:
