@@ -72,10 +72,23 @@ PYTHONPATH=src python3 -m pytest
    - `TURSO_DATABASE_URL`: 1번에서 복사한 URL
    - `TURSO_AUTH_TOKEN`: 1번에서 복사한 토큰
 5. Deploy 후 로그에 `Codyssey coach bot is ready`가 뜨면 성공. `https://앱이름.onrender.com` 공개 URL이 생깁니다.
+   - 현재 배포 주소: https://discord-codyssey-coach.onrender.com
 6. 환경 변수에 `KEEP_ALIVE_URL=https://앱이름.onrender.com/health`를 추가하고 저장하면 자동 재배포됩니다.
    - Render 무료 인스턴스는 15분 동안 외부 요청이 없으면 잠들기 때문에, 봇이 10분마다 스스로 핑을 보내 항상 깨어 있게 합니다.
 
 이후에는 GitHub에 푸시할 때마다 Render가 자동으로 다시 배포합니다.
+
+### 3. 배포 확인
+
+1. 브라우저에서 `https://앱이름.onrender.com/health` 접속 → `ok`가 표시되면 헬스 서버 정상
+2. 디스코드에서 `/내상태` 입력 → 응답이 오면 봇 정상
+3. 로컬 PC를 꺼둔 상태에서도 명령어가 동작하면 24시간 가동 확인 완료
+
+### 자주 발생하는 문제
+
+- **`Deploy failed ... while building your code`**: 최신 커밋(Dockerfile 포함)이 GitHub에 푸시됐는지 `git status`로 확인하세요. pre-push 검사에 막혀 푸시가 안 된 경우가 많습니다.
+- **`JWT error: InvalidToken`**: `TURSO_AUTH_TOKEN`이 잘못된 경우입니다. Turso 계정용 API Token이 아니라 **해당 DB의 Database Token**(Create Database Token 버튼, `eyJ`로 시작)을 써야 하고, `TURSO_DATABASE_URL`과 같은 DB의 것이어야 합니다. 붙여넣을 때 앞뒤 공백·따옴표가 없어야 합니다.
+- **pre-push 훅에서 `pytest가 설치되어 있지 않습니다`**: `.venv/bin/pip install pytest` 실행 후 다시 푸시하세요.
 
 ## 푸시 전 자동 검증 (pre-push 훅)
 
