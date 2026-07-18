@@ -9,7 +9,7 @@ def mission_label(mission_id: str) -> str:
     return f"{mission.mission_id} {mission.name}" if mission else mission_id
 
 
-def evaluation_message(mission_id: str, result: str, progress: MissionProgress) -> str:
+def evaluation_message(mission_id: str, result: str, progress: MissionProgress, count: int = 1) -> str:
     label = mission_label(mission_id)
     if result.lower() == "fail":
         return (
@@ -18,16 +18,17 @@ def evaluation_message(mission_id: str, result: str, progress: MissionProgress) 
             "다음 제출 전에는 평가 기준을 다시 점검하고 재도전하는 것이 좋아요."
         )
 
+    pass_note = f"Pass {count}회를" if count > 1 else "Pass를"
     if progress.completed:
         return (
-            f"{label} Pass를 기록했어요.\n\n"
+            f"{label} {pass_note} 기록했어요.\n\n"
             f"현재 평가 상태: {PASS_REQUIRED}/{PASS_REQUIRED} Pass\n"
             "이 미션은 완료 처리되었습니다."
         )
 
     left = PASS_REQUIRED - progress.pass_count
     return (
-        f"{label} Pass를 기록했어요.\n\n"
+        f"{label} {pass_note} 기록했어요.\n\n"
         f"현재 평가 상태: {progress.pass_count}/{PASS_REQUIRED} Pass\n"
         f"앞으로 {left}번 더 Pass를 받으면 완료됩니다."
     )
