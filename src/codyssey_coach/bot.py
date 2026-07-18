@@ -13,7 +13,7 @@ from discord import app_commands
 
 from .messages import evaluation_message, status_message, weekly_plan_message
 from .missions import MISSIONS, get_mission
-from .planner import build_status
+from .planner import CourseStatus, build_status
 from .storage import CoachStore
 
 
@@ -71,10 +71,21 @@ def create_bot() -> discord.Client:
 
     client.setup_hook = setup_hook  # type: ignore[method-assign]
 
+    # DB 작업(특히 Turso 동기화)은 네트워크 왕복이 있어 디스코드의 3초 응답 제한을
+    # 넘길 수 있습니다. 모든 명령은 defer()로 먼저 응답하고, DB 작업은 별도 스레드에서
+    # 실행한 뒤 followup으로 결과를 보냅니다.
+
     async def ensure(interaction: discord.Interaction) -> str:
         user_id = str(interaction.user.id)
-        store.ensure_user(user_id, interaction.user.display_name)
+        await asyncio.to_thread(store.ensure_user, user_id, interaction.user.display_name)
         return user_id
+
+    async def load_status(user_id: str) -> tuple[int, CourseStatus]:
+        def _load() -> tuple[int, dict]:
+            return store.get_level(user_id), store.get_progress(user_id)
+
+        level, progress = await asyncio.to_thread(_load)
+        return level, build_status(progress, today=date.today(), level=level)
 
     @client.event
     async def on_ready() -> None:
@@ -89,17 +100,18 @@ def create_bot() -> discord.Client:
 
     @tree.command(name="내상태", description="현재 Codyssey 진행 상태와 일정 위험도를 확인합니다.")
     async def my_status(interaction: discord.Interaction) -> None:
+        await interaction.response.defer()
         user_id = await ensure(interaction)
-        level = store.get_level(user_id)
-        status = build_status(store.get_progress(user_id), today=date.today(), level=level)
-        await interaction.response.send_message(status_message(interaction.user.display_name, level, status))
+        level, status = await load_status(user_id)
+        await interaction.followup.send(status_message(interaction.user.display_name, level, status))
 
     @tree.command(name="레벨설정", description="현재 Codyssey 레벨을 기록합니다.")
     @app_commands.describe(level="현재 레벨")
     async def set_level(interaction: discord.Interaction, level: app_commands.Range[int, 1, 10]) -> None:
+        await interaction.response.defer()
         user_id = await ensure(interaction)
-        store.set_level(user_id, int(level))
-        await interaction.response.send_message(f"현재 레벨을 {level}로 기록했어요.")
+        await asyncio.to_thread(store.set_level, user_id, int(level))
+        await interaction.followup.send(f"현재 레벨을 {level}로 기록했어요.")
 
     @tree.command(name="평가결과", description="미션 평가 결과를 기록합니다. Pass 3회면 완료, Fail이면 초기화됩니다.")
     @app_commands.describe(mission_id="미션 선택", result="평가 결과", pass_count="한 번에 기록할 Pass 횟수")
@@ -124,37 +136,38 @@ def create_bot() -> discord.Client:
         result: app_commands.Choice[str],
         pass_count: app_commands.Choice[int] | None = None,
     ) -> None:
+        await interaction.response.defer()
         user_id = await ensure(interaction)
         mission = get_mission(mission_id.value)
         if mission is None:
-            await interaction.response.send_message(f"'{mission_id.value}' 미션을 찾지 못했어요.", ephemeral=True)
+            await interaction.followup.send(f"'{mission_id.value}' 미션을 찾지 못했어요.")
             return
         count = pass_count.value if pass_count else 1
-        progress = store.record_evaluation(user_id, mission.mission_id, result.value, count)
-        await interaction.response.send_message(evaluation_message(mission.mission_id, result.value, progress, count))
+        progress = await asyncio.to_thread(store.record_evaluation, user_id, mission.mission_id, result.value, count)
+        await interaction.followup.send(evaluation_message(mission.mission_id, result.value, progress, count))
 
     @tree.command(name="주간보고", description="이번 주 완료 내용, 학습 시간, 막힌 점을 기록합니다.")
     @app_commands.describe(completed="이번 주 완료한 내용", study_hours="이번 주 학습 시간", blockers="막힌 점")
     async def weekly_report(interaction: discord.Interaction, completed: str, study_hours: app_commands.Range[int, 0, 168], blockers: str = "없음") -> None:
+        await interaction.response.defer()
         user_id = await ensure(interaction)
-        store.save_weekly_report(user_id, completed, int(study_hours), blockers)
-        level = store.get_level(user_id)
-        status = build_status(store.get_progress(user_id), today=date.today(), level=level)
-        await interaction.response.send_message("이번 주 보고를 저장했어요.\n\n" + weekly_plan_message(status))
+        await asyncio.to_thread(store.save_weekly_report, user_id, completed, int(study_hours), blockers)
+        _, status = await load_status(user_id)
+        await interaction.followup.send("이번 주 보고를 저장했어요.\n\n" + weekly_plan_message(status))
 
     @tree.command(name="다음주계획", description="남은 기간과 필수 미션 기준으로 다음 주 우선순위를 추천합니다.")
     async def next_week(interaction: discord.Interaction) -> None:
+        await interaction.response.defer()
         user_id = await ensure(interaction)
-        level = store.get_level(user_id)
-        status = build_status(store.get_progress(user_id), today=date.today(), level=level)
-        await interaction.response.send_message(weekly_plan_message(status))
+        _, status = await load_status(user_id)
+        await interaction.followup.send(weekly_plan_message(status))
 
     @tree.command(name="위험도", description="기초 단계 종료일까지의 일정 위험도를 확인합니다.")
     async def risk(interaction: discord.Interaction) -> None:
+        await interaction.response.defer()
         user_id = await ensure(interaction)
-        level = store.get_level(user_id)
-        status = build_status(store.get_progress(user_id), today=date.today(), level=level)
-        await interaction.response.send_message(
+        _, status = await load_status(user_id)
+        await interaction.followup.send(
             f"일정 상태: {status.risk_level}\n"
             f"현재 주차: {status.current_week}/26주\n"
             f"남은 주차: {status.remaining_weeks}주\n"
