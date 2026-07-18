@@ -13,6 +13,7 @@
   - `fail`: Pass 카운트 0으로 초기화
   - 기록 후 전체 진행률 요약 표시
 - `/기록수정`: 잘못 기록한 미션의 Pass 카운트를 직접 수정 (3이면 완료 처리, 0이면 초기화)
+- `/청소`: 채널에 쌓인 봇 메시지를 한 번에 삭제 (봇에게 '메시지 관리' 권한 필요, 14일 이내 메시지만)
 - `/주간보고`: 주간 완료 내용, 학습 시간, 막힌 점 저장
 - `/다음주계획`: 다음 주 우선순위 추천
 - `/위험도`: 기초 단계 종료일 기준 일정 위험도 확인
@@ -36,7 +37,7 @@ cp .env.example .env
 2. Bot 메뉴에서 Bot을 만들고 Token을 복사합니다.
 3. `.env` 파일의 `DISCORD_TOKEN`에 복사한 토큰을 넣습니다.
 4. OAuth2 URL Generator에서 `bot`, `applications.commands` scope를 선택합니다.
-5. Bot Permissions에서 `Send Messages`, `Use Slash Commands`, `Read Message History`를 선택합니다.
+5. Bot Permissions에서 `Send Messages`, `Use Slash Commands`, `Read Message History`, `Manage Messages`(/청소 기능용)를 선택합니다.
 6. 생성된 URL로 접속해서 원하는 서버에 봇을 초대합니다.
 7. 빠른 슬래시 명령어 등록을 위해 서버 ID를 `.env`의 `DISCORD_GUILD_ID`에 넣습니다.
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import aiohttp
@@ -244,6 +244,39 @@ def create_bot() -> discord.Client:
         user_id = await ensure(interaction)
         _, status = await load_status(user_id)
         await interaction.followup.send(weekly_plan_message(status))
+
+    @tree.command(name="청소", description="이 채널에서 봇이 보낸 메시지를 한 번에 삭제합니다.")
+    @app_commands.describe(limit="최근 몇 개의 메시지를 검사할지 (기본 100개)")
+    async def cleanup(
+        interaction: discord.Interaction,
+        limit: app_commands.Range[int, 1, 500] = 100,
+    ) -> None:
+        await interaction.response.defer(ephemeral=True)
+        channel = interaction.channel
+        if not isinstance(channel, (discord.TextChannel, discord.Thread)):
+            await interaction.followup.send("이 채널에서는 청소 기능을 사용할 수 없어요.")
+            return
+
+        me = channel.guild.me if channel.guild else None
+        permissions = channel.permissions_for(me) if me else None
+        if not permissions or not (permissions.manage_messages and permissions.read_message_history):
+            await interaction.followup.send(
+                "봇에게 '메시지 관리'와 '메시지 기록 보기' 권한이 필요해요.\n"
+                "서버 설정 → 역할 → 봇 역할에서 두 권한을 켜주세요."
+            )
+            return
+
+        # 디스코드 제한: 14일이 지난 메시지는 일괄 삭제 불가
+        cutoff = discord.utils.utcnow() - timedelta(days=14)
+        deleted = await channel.purge(
+            limit=int(limit),
+            check=lambda message: message.author.id == client.user.id,
+            after=cutoff,
+            oldest_first=False,
+            reason="봇 메시지 청소",
+        )
+        note = "" if deleted else " (최근 14일 안에 삭제할 봇 메시지가 없었어요.)"
+        await interaction.followup.send(f"봇 메시지 {len(deleted)}개를 삭제했어요.{note}")
 
     @tree.command(name="위험도", description="기초 단계 종료일까지의 일정 위험도를 확인합니다.")
     async def risk(interaction: discord.Interaction) -> None:
