@@ -52,7 +52,7 @@ PYTHONPATH=src python3 -m pytest
 
 ## 24시간 클라우드 배포 (로컬 실행 불필요)
 
-로컬 PC를 켜두지 않아도 봇이 돌아가도록 Koyeb(무료) + Turso(무료 DB) 조합으로 배포합니다.
+로컬 PC를 켜두지 않아도 봇이 돌아가도록 Render(무료) + Turso(무료 DB) 조합으로 배포합니다.
 
 ### 1. Turso DB 만들기 (데이터 유지용)
 
@@ -61,21 +61,21 @@ PYTHONPATH=src python3 -m pytest
 1. https://turso.tech 에서 가입 후 데이터베이스를 하나 만듭니다.
 2. 데이터베이스 URL(`libsql://...`)과 auth token을 복사해 둡니다.
 
-### 2. Koyeb에 배포
+### 2. Render에 배포
 
-1. https://koyeb.com 에서 GitHub 계정으로 가입합니다.
-2. Create Service → GitHub → 이 저장소 선택 → Builder는 `Dockerfile`을 선택합니다.
-3. Instance는 **Free**를 선택합니다.
-4. Environment variables에 아래를 추가합니다.
+1. https://render.com 에서 GitHub 계정으로 가입합니다.
+2. New → Web Service → 이 저장소 선택 → Language는 **Docker**를 선택합니다.
+3. Instance Type은 **Free**를 선택합니다.
+4. Environment Variables에 아래를 추가합니다.
    - `DISCORD_TOKEN`: 디스코드 봇 토큰
    - `DISCORD_GUILD_ID`: 서버 ID (선택)
    - `TURSO_DATABASE_URL`: 1번에서 복사한 URL
    - `TURSO_AUTH_TOKEN`: 1번에서 복사한 토큰
-5. 배포가 끝나면 `https://앱이름-계정.koyeb.app` 공개 URL이 생깁니다.
-6. 환경 변수에 `KEEP_ALIVE_URL=https://앱이름-계정.koyeb.app/health`를 추가하고 재배포합니다.
-   - Koyeb 무료 인스턴스는 1시간 동안 외부 요청이 없으면 잠들기 때문에, 봇이 10분마다 스스로 핑을 보내 항상 깨어 있게 합니다.
+5. Deploy 후 로그에 `Codyssey coach bot is ready`가 뜨면 성공. `https://앱이름.onrender.com` 공개 URL이 생깁니다.
+6. 환경 변수에 `KEEP_ALIVE_URL=https://앱이름.onrender.com/health`를 추가하고 저장하면 자동 재배포됩니다.
+   - Render 무료 인스턴스는 15분 동안 외부 요청이 없으면 잠들기 때문에, 봇이 10분마다 스스로 핑을 보내 항상 깨어 있게 합니다.
 
-이후에는 GitHub에 푸시할 때마다 Koyeb가 자동으로 다시 배포합니다.
+이후에는 GitHub에 푸시할 때마다 Render가 자동으로 다시 배포합니다.
 
 ## 푸시 전 자동 검증 (pre-push 훅)
 
