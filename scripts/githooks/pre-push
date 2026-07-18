@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# git push 직전에 자동 실행됩니다. 실패하면 푸시가 취소됩니다.
+echo "푸시 전 검증을 시작합니다 (scripts/check.sh)..."
+exec "$(git rev-parse --show-toplevel)/scripts/check.sh"

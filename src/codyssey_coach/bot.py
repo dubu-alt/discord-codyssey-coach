@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from datetime import date
 from pathlib import Path
 
+import aiohttp
 import certifi
 import discord
+from aiohttp import web
 from discord import app_commands
 
 from .messages import evaluation_message, status_message, weekly_plan_message
@@ -27,11 +30,46 @@ def load_dotenv(path: str = ".env") -> None:
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
+async def start_health_server(port: int) -> None:
+    """호스팅 플랫폼의 헬스체크와 keep-alive 핑을 받는 작은 웹 서버."""
+    app = web.Application()
+
+    async def health(_request: web.Request) -> web.Response:
+        return web.Response(text="ok")
+
+    app.router.add_get("/", health)
+    app.router.add_get("/health", health)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    await web.TCPSite(runner, "0.0.0.0", port).start()
+    print(f"Health server listening on port {port}")
+
+
+async def keep_alive(url: str, interval_seconds: int = 600) -> None:
+    """무료 인스턴스가 잠들지 않도록 주기적으로 자기 자신을 핑."""
+    async with aiohttp.ClientSession() as session:
+        while True:
+            try:
+                async with session.get(url) as response:
+                    await response.read()
+            except Exception as error:
+                print(f"[keep-alive] 핑 실패: {error}")
+            await asyncio.sleep(interval_seconds)
+
+
 def create_bot() -> discord.Client:
     intents = discord.Intents.default()
     client = discord.Client(intents=intents)
     tree = app_commands.CommandTree(client)
-    store = CoachStore(os.getenv("CODYSSEY_DB_PATH", "codyssey_coach.sqlite3"))
+    store = CoachStore.from_env()
+
+    async def setup_hook() -> None:
+        await start_health_server(int(os.getenv("PORT", "8080")))
+        keep_alive_url = os.getenv("KEEP_ALIVE_URL")
+        if keep_alive_url:
+            client.loop.create_task(keep_alive(keep_alive_url))
+
+    client.setup_hook = setup_hook  # type: ignore[method-assign]
 
     async def ensure(interaction: discord.Interaction) -> str:
         user_id = str(interaction.user.id)
